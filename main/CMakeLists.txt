@@ -23,6 +23,7 @@ idf_component_register(
         "ui"
     PRIV_REQUIRES
         esp_lcd
+        esp_lcd_ili9341
         nvs_flash
         esp_timer
         spiffs

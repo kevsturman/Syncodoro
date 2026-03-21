@@ -15,4 +15,4 @@ dependencies:
   #   # All dependencies of `main` are public by default.
   #   public: true
   espressif/esp_lvgl_port: ^2.7.1
-  atanisoft/esp_lcd_touch_xpt2046: ^1.0.6
+  atanisoft/esp_lcd_touch_xpt2046: ^1.0.6  espressif/esp_lcd_ili9341: ^2.0.0
