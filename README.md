@@ -54,13 +54,13 @@ A standalone **Pomodoro focus timer** for the ESP32-2432S028R ("Cheap Yellow Dis
 
 ### 3D-Printed Case
 
-An optional snap-fit enclosure sized for the ESP32-2432S028R is included in the [`mechanical/`](mechanical/) folder. All parts were modelled in [FreeCAD](https://www.freecad.org/) and exported as STEP (`.stp`) so they can be opened in any CAD tool and re-sliced for any printer.
+An optional enclosure sized for the ESP32-2432S028R is available on [MakerWorld](https://makerworld.com/en/models/2546010-syncodoro#profileId-2803501) and included in the [`mechanical/`](mechanical/) folder as a single STEP file containing three separate bodies.
 
-| File | Description |
+| File | Contents |
 |---|---|
-| `syncodoro_case_bottom.stp` | Base shell — holds the PCB and provides a flat stand |
-| `syncodoro_case_top.stp` | Top frame — exposes the 2.8" display and USB port |
-| `syncodoro_case_button.stp` | Optional tactile-button surround (if used) |
+| [`syncodoro_case_no_screw.stp`](mechanical/syncodoro_case_no_screw.stp) | Three-body assembly: top shell, bottom shell, and button cap — no screws required |
+
+Open the file in any CAD tool (FreeCAD, Fusion 360, SolidWorks, etc.) to inspect or modify individual bodies before slicing.
 
 **Suggested print settings**
 
@@ -69,8 +69,7 @@ An optional snap-fit enclosure sized for the ESP32-2432S028R is included in the 
 | Material | PLA or PETG |
 | Layer height | 0.2 mm |
 | Infill | 20 % |
-| Supports | Required for the top frame (display cutout overhang) |
-| Orientation | Print bottom shell flat; top frame upside-down to minimise support use |
+| Supports | Not required — bodies are oriented for support-free printing |
 
 ---
 
