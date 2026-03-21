@@ -27,12 +27,14 @@ A standalone **Pomodoro focus timer** for the ESP32-2432S028R ("Cheap Yellow Dis
 ┌──────────────────────────────┐
 │  ESP32-2432S028R             │
 │                              │
-│  LCD   ST7789  2.8" 240×320  │
+│  LCD   ST7789/ILI9341 2.8"   │
 │  Touch XPT2046  (resistive)  │
 │  Flash 4 MB                  │
 │  SD    microSD (optional)    │
 └──────────────────────────────┘
 ```
+
+**Display driver:** The project supports both **ST7789** (default) and **ILI9341** LCD controllers. Use `idf.py menuconfig` → Syncodoro Configuration → Display driver to select your board's controller. For web flashing, choose the driver in [docs/index.html](docs/index.html) before installing.
 
 ### Pin Map
 
@@ -49,6 +51,26 @@ A standalone **Pomodoro focus timer** for the ESP32-2432S028R ("Cheap Yellow Dis
 | | SCLK | 25 |
 | | CS | 33 |
 | **SD (shared SPI2)** | CS | 4 |
+
+### 3D-Printed Case
+
+An optional snap-fit enclosure sized for the ESP32-2432S028R is included in the [`mechanical/`](mechanical/) folder. All parts were modelled in [FreeCAD](https://www.freecad.org/) and exported as STEP (`.stp`) so they can be opened in any CAD tool and re-sliced for any printer.
+
+| File | Description |
+|---|---|
+| `syncodoro_case_bottom.stp` | Base shell — holds the PCB and provides a flat stand |
+| `syncodoro_case_top.stp` | Top frame — exposes the 2.8" display and USB port |
+| `syncodoro_case_button.stp` | Optional tactile-button surround (if used) |
+
+**Suggested print settings**
+
+| Setting | Value |
+|---|---|
+| Material | PLA or PETG |
+| Layer height | 0.2 mm |
+| Infill | 20 % |
+| Supports | Required for the top frame (display cutout overhang) |
+| Orientation | Print bottom shell flat; top frame upside-down to minimise support use |
 
 ---
 
@@ -94,12 +116,13 @@ Timer Screen
 
 ```
 syncodoro/
+├── mechanical/             # 3D-print case STEP files (FreeCAD export)
 ├── partitions.csv          # Custom 4 MB flash layout
 ├── sdkconfig.defaults      # Flash size, partition table, LVGL fonts, HTTP buffer
 └── main/
     ├── main.c              # Boot entry — NVS read, BSP init, mode branch
     ├── bsp/
-    │   ├── cyd.c           # ST7789 LCD, XPT2046 touch, SD card init
+    │   ├── cyd.c           # ST7789/ILI9341 LCD, XPT2046 touch, SD card init
     │   └── cyd.h
     ├── model/
     │   ├── pomo_model.c    # Global active_session (single source of truth)
@@ -230,8 +253,14 @@ cd syncodoro
 # Set up IDF environment (Windows PowerShell)
 . $env:IDF_PATH\export.ps1
 
-# Build
+# Build (default: ST7789 driver)
 idf.py build
+
+# For web installer: copy build/syncodoro.bin to docs/syncodoro-st7789.bin
+
+# Build ILI9341 variant (for web installer / releases)
+idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.ili9341" fullclean build
+# Then copy build/syncodoro.bin to docs/syncodoro-ili9341.bin
 ```
 
 ### Flash
