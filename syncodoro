@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+#
+# syncodoro — control the Syncodoro pomodoro timer over the LAN webhook API.
+# Point it at your device with $SYNCODORO_URL or the -u/--url flag.
+#
+set -euo pipefail
+
+URL="${SYNCODORO_URL:-http://192.168.1.69}"
+
+if [[ -t 1 ]]; then
+    C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+    C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'; C_RED=$'\033[31m'; C_CYAN=$'\033[36m'
+else
+    C_RESET=; C_BOLD=; C_DIM=; C_GREEN=; C_YELLOW=; C_RED=; C_CYAN=
+fi
+
+die() { echo "${C_RED}error:${C_RESET} $*" >&2; exit 1; }
+
+label_for() {
+    case "$1" in
+        IDLE)      echo "IDLE" ;;
+        COUNTING)  echo "FOCUS" ;;
+        PAUSED)    echo "PAUSED" ;;
+        COMPLETED) echo "DONE" ;;
+    esac
+}
+
+color_for() {
+    case "$1" in
+        IDLE)      echo "$C_DIM" ;;
+        COUNTING)  echo "$C_GREEN" ;;
+        PAUSED)    echo "$C_YELLOW" ;;
+        COMPLETED) echo "$C_RED" ;;
+    esac
+}
+
+call_api() {
+    local method=$1 path=$2
+    shift 2
+    curl -sf -X "$method" "$URL$path" "$@" || die "request to $URL$path failed — is the device online?"
+}
+
+show_status() {
+    local resp
+    resp=$(call_api GET /api/timer/status)
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "$resp"
+        return
+    fi
+
+    local state remaining duration tag is_completed
+    IFS=$'\t' read -r state remaining duration tag is_completed \
+        <<<"$(printf '%s' "$resp" | python3 -c \
+            'import sys,json;d=json.load(sys.stdin);print(d["state"],d["remaining_secs"],d["focusDuration"],d["tag"],"yes" if d["isCompleted"] else "no",sep="\t")')"
+
+    local label color mmss
+    label=$(label_for "$state")
+    color=$(color_for "$state")
+    printf -v mmss "%02d:%02d" $((remaining / 60)) $((remaining % 60))
+
+    if [[ $state == COMPLETED ]]; then
+        echo "${color}●${C_RESET} ${C_BOLD}DONE${C_RESET}  session complete  ${C_DIM}${tag} · ${duration} min${C_RESET}"
+    elif [[ $state == IDLE ]]; then
+        echo "${color}●${C_RESET} ${C_BOLD}IDLE${C_RESET}  ready for ${mmss}  ${C_DIM}${tag} · ${duration} min${C_RESET}"
+    else
+        echo "${color}●${C_RESET} ${C_BOLD}${label}${C_RESET}  ${mmss} remaining  ${C_DIM}${tag} · ${duration} min${C_RESET}"
+    fi
+}
+
+usage() {
+    cat <<EOF
+${C_BOLD}syncodoro${C_RESET} — control the Syncodoro pomodoro timer over the network
+
+Usage:
+  syncodoro status                     Show the current timer state
+  syncodoro start [MIN] [TAG]          Start a session (uses saved values if omitted)
+  syncodoro start -d 25 -t Coding      Same, with explicit options
+  syncodoro pause                      Pause a running session
+  syncodoro resume                     Resume a paused session
+  syncodoro reset                      Abort and clear the timer
+  syncodoro -u http://<ip> status      Use a different device
+
+Options:
+  -d, --duration MIN   Session length in minutes (5–120, rounded to 5)
+  -t, --tag NAME       Tag for the session
+  -u, --url URL        Device base URL (default: \$SYNCODORO_URL or $URL)
+  -h, --help           Show this help
+
+Examples:
+  syncodoro start 25 Coding
+  syncodoro start -t "Deep Work"
+  syncodoro status
+EOF
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "$cmd" in
+    status)
+        show_status
+        ;;
+
+    info)
+        resp=$(call_api GET /api/device/info)
+        if command -v python3 >/dev/null 2>&1; then
+            mac=""; ip=""; state=""
+            IFS=$'\t' read -r mac ip state \
+                <<<"$(printf '%s' "$resp" | python3 -c \
+                    'import sys,json;d=json.load(sys.stdin);print(d["mac"],d["ip"],d["state"],sep="\t")')"
+            echo "${C_CYAN}MAC${C_RESET}   $mac"
+            echo "${C_CYAN}IP${C_RESET}    $ip"
+            echo "${C_CYAN}state${C_RESET} $(label_for "$state")"
+        else
+            echo "$resp"
+        fi
+        ;;
+
+    start)
+        duration=""; tag=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -d|--duration)
+                    [[ $# -ge 2 ]] || die "$1 needs a value"
+                    duration=$2; shift 2 ;;
+                -t|--tag)
+                    [[ $# -ge 2 ]] || die "$1 needs a value"
+                    tag=$2; shift 2 ;;
+                -h|--help) usage; exit 0 ;;
+                -*)
+                    die "unknown option: $1" ;;
+                *)
+                    if [[ -z $duration && $1 =~ ^[0-9]+$ ]]; then
+                        duration=$1
+                    elif [[ -z $tag ]]; then
+                        tag=$1
+                    else
+                        die "too many arguments: $1"
+                    fi
+                    shift ;;
+            esac
+        done
+
+        if [[ -n $duration && ($duration -lt 5 || $duration -gt 120) ]]; then
+            die "duration must be 5..120 minutes (got $duration)"
+        fi
+
+        args=()
+        [[ -n $duration ]] && args+=(--data-urlencode "duration=$duration")
+        [[ -n $tag ]]      && args+=(--data-urlencode "tag=$tag")
+        call_api POST /api/timer/start "${args[@]}" >/dev/null
+        echo "${C_GREEN}●${C_RESET} session started"
+        show_status
+        ;;
+
+    pause|resume|reset)
+        call_api POST "/api/timer/$cmd" >/dev/null
+        echo "${C_GREEN}●${C_RESET} $cmd"
+        show_status
+        ;;
+
+    -u|--url)
+        [[ $# -ge 1 ]] || die "$cmd needs a URL"
+        URL=$1; shift
+        if [[ $# -ge 1 && $1 != -* ]]; then
+            cmd=$1; shift
+        else
+            cmd=status
+        fi
+        exec "$0" "$cmd" "$@"
+        ;;
+
+    -h|--help|help) usage ;;
+    *) die "unknown command: $cmd (try --help)" ;;
+esac

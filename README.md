@@ -16,6 +16,7 @@ A standalone **Pomodoro focus timer** for the ESP32-2432S028R ("Cheap Yellow Dis
 | **Timestamps** | NTP sync after WiFi connect; start time stored in UTC |
 | **On-device history** | Scrollable session list: tag, duration, date/time |
 | **Web dashboard** | History table, CSV download, and tag management (add/remove, save to device) |
+| **Remote control** | Webhook API to start, pause, resume, reset, or query the timer from the LAN |
 | **WiFi modes** | AP mode on first boot (`Syncodoro-Setup` → 192.168.4.1); STA mode for normal use |
 
 ---
@@ -90,6 +91,26 @@ idf.py -p COM<PORT> flash
 On first boot the device starts in **AP mode**: connect to `Syncodoro-Setup` (open network) and open `http://192.168.4.1` to enter your home WiFi credentials. After saving, it reboots into **STA mode** and joins your network. The Settings screen shows the assigned IP; open `http://<device-ip>` to access the web dashboard.
 
 To reset WiFi credentials, erase NVS with `idf.py -p COM<PORT> erase-flash` and re-flash.
+
+### Webhook API
+
+While on your WiFi network, the timer can be controlled from any device via the embedded HTTP server (no auth — for trusted networks only):
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/timer/status` | GET | Current state, remaining seconds, duration, tag |
+| `/api/timer/start` | POST | Start a fresh session. Optional form body: `duration=<minutes>` and `tag=<name>` |
+| `/api/timer/pause` | POST | Pause a running session |
+| `/api/timer/resume` | POST | Resume a paused session |
+| `/api/timer/reset` | POST | Abort and clear back to idle |
+
+Example — start a 25-minute "Coding" session:
+
+```bash
+curl -X POST http://<device-ip>/api/timer/start -d "duration=25&tag=Coding"
+```
+
+Every response is JSON, e.g. `{"ok":true,"state":"COUNTING","remaining_secs":1500,"focusDuration":25,"tag":"Coding","isCompleted":false}`.
 
 ---
 

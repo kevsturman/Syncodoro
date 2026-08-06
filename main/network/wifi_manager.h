@@ -35,6 +35,9 @@ wifi_state_t wifi_manager_get_state(void);
 // Fills buf with the current IP string (AP: "192.168.4.1"; STA: assigned IP).
 void wifi_manager_get_ip_str(char *buf, size_t len);
 
+// Fills buf with the STA interface MAC address (e.g. "3c:84:6a:f6:3a:74").
+void wifi_manager_get_mac(char *buf, size_t len);
+
 #ifdef __cplusplus
 }
 #endif

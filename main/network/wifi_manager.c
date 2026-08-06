@@ -20,6 +20,8 @@ static volatile wifi_state_t s_state = WIFI_STATE_IDLE;
 static int s_retry_cnt = 0;
 static char s_ip_str[16] = "0.0.0.0";
 static wifi_connected_cb_t s_connected_cb = NULL;
+static bool s_sta_netif_created = false;
+static bool s_sta_started = false;
 
 void wifi_manager_set_connected_cb(wifi_connected_cb_t cb)
 {
@@ -34,6 +36,9 @@ static void event_handler(void *arg, esp_event_base_t base, int32_t id, void *da
             esp_wifi_connect();
             ESP_LOGI(TAG, "STA started – connecting...");
         } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
+            wifi_event_sta_disconnected_t *dis = (wifi_event_sta_disconnected_t *)data;
+            ESP_LOGW(TAG, "Disconnected from AP, reason=%d (%s)",
+                     dis->reason, esp_err_to_name(dis->reason));
             if (s_retry_cnt < STA_MAX_RETRY) {
                 s_retry_cnt++;
                 s_state = WIFI_STATE_CONNECTING;
@@ -110,19 +115,37 @@ void wifi_manager_start_sta(void)
     }
     nvs_config_get_wifi_password(password, sizeof(password));
 
-    esp_netif_create_default_wifi_sta();
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    if (!s_sta_netif_created) {
+        esp_netif_create_default_wifi_sta();
+        s_sta_netif_created = true;
+    }
 
-    wifi_config_t wifi_cfg = {0};
-    strlcpy((char *)wifi_cfg.sta.ssid, ssid, sizeof(wifi_cfg.sta.ssid));
-    strlcpy((char *)wifi_cfg.sta.password, password, sizeof(wifi_cfg.sta.password));
-    wifi_cfg.sta.threshold.authmode = WIFI_AUTH_OPEN;
+    if (!s_sta_started) {
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
-    ESP_ERROR_CHECK(esp_wifi_start());
+        wifi_config_t wifi_cfg = {0};
+        strlcpy((char *)wifi_cfg.sta.ssid, ssid, sizeof(wifi_cfg.sta.ssid));
+        strlcpy((char *)wifi_cfg.sta.password, password, sizeof(wifi_cfg.sta.password));
+        wifi_cfg.sta.threshold.authmode = WIFI_AUTH_OPEN;
 
-    s_state = WIFI_STATE_CONNECTING;
-    ESP_LOGI(TAG, "STA starting for SSID: %s", ssid);
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
+        ESP_ERROR_CHECK(esp_wifi_start());   // WIFI_EVENT_STA_START triggers the connect
+        s_sta_started = true;
+    } else {
+        // Already started — manual reconnect after a previous failure.
+        s_retry_cnt = 0;
+        s_state = WIFI_STATE_CONNECTING;
+        esp_err_t err = esp_wifi_connect();
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "esp_wifi_connect: %s", esp_err_to_name(err));
+        }
+    }
+
+    ESP_LOGI(TAG, "STA connecting to SSID: %s", ssid);
+
+    char mac[18];
+    wifi_manager_get_mac(mac, sizeof(mac));
+    ESP_LOGI(TAG, "STA MAC: %s", mac);
 }
 
 void wifi_manager_stop(void)
@@ -130,6 +153,7 @@ void wifi_manager_stop(void)
     esp_wifi_stop();
     esp_wifi_deinit();
     s_state = WIFI_STATE_IDLE;
+    s_sta_started = false;
 }
 
 wifi_state_t wifi_manager_get_state(void)
@@ -140,4 +164,15 @@ wifi_state_t wifi_manager_get_state(void)
 void wifi_manager_get_ip_str(char *buf, size_t len)
 {
     strlcpy(buf, s_ip_str, len);
+}
+
+void wifi_manager_get_mac(char *buf, size_t len)
+{
+    uint8_t mac[6] = {0};
+    if (esp_wifi_get_mac(WIFI_IF_STA, mac) == ESP_OK) {
+        snprintf(buf, len, "%02x:%02x:%02x:%02x:%02x:%02x",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    } else {
+        strlcpy(buf, "00:00:00:00:00:00", len);
+    }
 }

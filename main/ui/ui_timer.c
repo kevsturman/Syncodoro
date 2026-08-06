@@ -11,7 +11,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 
 static const char *TAG = "ui_timer";
 
@@ -141,15 +140,14 @@ static void tag_clicked_cb(lv_event_t *e)
 static void modal_resume_cb(lv_event_t *e)
 {
     if (modal_overlay) { lv_obj_delete(modal_overlay); modal_overlay = NULL; }
-    active_session.timerState = pomoTimer_COUNTING;
+    pomo_resume_session();
     update_ui_state();
 }
 
 static void modal_giveup_cb(lv_event_t *e)
 {
     if (modal_overlay) { lv_obj_delete(modal_overlay); modal_overlay = NULL; }
-    active_session.timerState = pomoTimer_IDLE;
-    active_session.remaining_secs = active_session.focusDuration * 60;
+    pomo_reset_session();
     update_time_display();
     update_ui_state();
 }
@@ -213,9 +211,7 @@ static void modal_save_cb(lv_event_t *e)
     }
 
     // Reset model for next session
-    active_session.timerState    = pomoTimer_IDLE;
-    active_session.isCompleted   = false;
-    active_session.remaining_secs = active_session.focusDuration * 60;
+    pomo_reset_session();
 
     // Navigate to history so the user can immediately see the saved entry
     clear_pui_widgets();
@@ -225,9 +221,7 @@ static void modal_save_cb(lv_event_t *e)
 static void modal_discard_cb(lv_event_t *e)
 {
     if (modal_overlay) { lv_obj_delete(modal_overlay); modal_overlay = NULL; }
-    active_session.timerState = pomoTimer_IDLE;
-    active_session.isCompleted = false;
-    active_session.remaining_secs = active_session.focusDuration * 60;
+    pomo_reset_session();
     update_time_display();
     update_ui_state();
 }
@@ -358,29 +352,10 @@ static void scr_clicked_cb(lv_event_t *e)
 {
     switch (active_session.timerState) {
         case pomoTimer_IDLE:
-            active_session.timerState = pomoTimer_COUNTING;
-            active_session.isCompleted = false;
-
-            // Stamp the session start time in UTC (YYYY-MM-DD HH:MM).
-            // gmtime_r is always UTC regardless of TZ setting, so no timezone
-            // configuration is needed.  The year check guards against using
-            // the epoch (1970-01-01) before SNTP has synced.
-            {
-                time_t now = time(NULL);
-                struct tm ts;
-                gmtime_r(&now, &ts);
-                if (ts.tm_year > 70) {
-                    strftime(active_session.dateAndTime,
-                             sizeof(active_session.dateAndTime),
-                             "%Y-%m-%d %H:%M", &ts);
-                } else {
-                    strlcpy(active_session.dateAndTime, "unknown",
-                            sizeof(active_session.dateAndTime));
-                }
-            }
+            pomo_start_session(NULL, 0);
             break;
         case pomoTimer_COUNTING:
-            active_session.timerState = pomoTimer_STOP;
+            pomo_pause_session();
             show_pause_modal();
             break;
         case pomoTimer_STOP:
@@ -447,24 +422,17 @@ static void nav_history_cb(lv_event_t *e)
 // =========================================================
 static void lv_tick_cb(lv_timer_t *t)
 {
-    if (active_session.timerState != pomoTimer_COUNTING) return;
+    bool just_completed = pomo_tick();
 
-    if (active_session.remaining_secs > 0) {
-        active_session.remaining_secs--;
-    }
-
-    // Update display only when widgets are valid (we're on the timer screen)
+    // Update display only when widgets are valid (we're on the timer screen).
+    // update_ui_state() runs every tick so state changes made remotely
+    // (e.g. via the webhook API) are reflected on the device.
     if (pui.label_time) {
         update_time_display();
     }
-
-    if (active_session.remaining_secs <= 0) {
-        active_session.timerState = pomoTimer_COMPLETED;
-        active_session.isCompleted = true;
-        active_session.pomoCount += 1.0;
-
-        if (pui.label_status) {
-            update_ui_state();
+    if (pui.label_status) {
+        update_ui_state();
+        if (just_completed) {
             show_done_modal();
         }
     }

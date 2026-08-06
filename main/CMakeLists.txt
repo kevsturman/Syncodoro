@@ -24,6 +24,7 @@ idf_component_register(
     PRIV_REQUIRES
         esp_lcd
         esp_lcd_ili9341
+        freertos
         nvs_flash
         esp_timer
         spiffs

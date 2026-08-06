@@ -1,5 +1,7 @@
 #include "http_server.h"
 #include "nvs_config.h"
+#include "pomo_model.h"
+#include "wifi_manager.h"
 
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -485,6 +487,112 @@ static esp_err_t api_tags_post_handler(httpd_req_t *req)
 }
 
 // =========================================================
+// TIMER WEBHOOK HANDLERS
+// =========================================================
+
+static const char *timer_state_str(pomotimerState_t state)
+{
+    switch (state) {
+        case pomoTimer_IDLE:      return "IDLE";
+        case pomoTimer_COUNTING:  return "COUNTING";
+        case pomoTimer_STOP:      return "PAUSED";
+        case pomoTimer_COMPLETED: return "COMPLETED";
+    }
+    return "UNKNOWN";
+}
+
+// Respond with a JSON snapshot of the current session state.
+static esp_err_t send_timer_response(httpd_req_t *req)
+{
+    pomoTimer_t snap;
+    pomo_get_state(&snap);
+
+    char buf[256];
+    snprintf(buf, sizeof(buf),
+             "{\"ok\":true,\"state\":\"%s\",\"remaining_secs\":%d,"
+             "\"focusDuration\":%d,\"tag\":\"%s\",\"isCompleted\":%s}",
+             timer_state_str(snap.timerState), snap.remaining_secs,
+             snap.focusDuration, snap.classTag,
+             snap.isCompleted ? "true" : "false");
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
+    return ESP_OK;
+}
+
+// POST /api/timer/start — begin a fresh focus session.
+// Optional form body: duration=<minutes>, tag=<name>.
+static esp_err_t api_timer_start_handler(httpd_req_t *req)
+{
+    char body[128] = {0};
+    int remaining = (int)req->content_len;
+    if (remaining <= 0 || remaining >= (int)sizeof(body)) {
+        remaining = (int)sizeof(body) - 1;
+    }
+
+    int total = 0;
+    while (total < remaining) {
+        int n = httpd_req_recv(req, body + total, (size_t)(remaining - total));
+        if (n <= 0) break;
+        total += n;
+    }
+    body[total] = '\0';
+
+    char dur_str[16] = {0};
+    char tag[32] = {0};
+    form_get_value(body, "duration", dur_str, sizeof(dur_str));
+    form_get_value(body, "tag", tag, sizeof(tag));
+
+    int dur = dur_str[0] != '\0' ? atoi(dur_str) : 0;
+    pomo_start_session(tag[0] != '\0' ? tag : NULL, dur);
+    return send_timer_response(req);
+}
+
+static esp_err_t api_timer_pause_handler(httpd_req_t *req)
+{
+    pomo_pause_session();
+    return send_timer_response(req);
+}
+
+static esp_err_t api_timer_resume_handler(httpd_req_t *req)
+{
+    pomo_resume_session();
+    return send_timer_response(req);
+}
+
+static esp_err_t api_timer_reset_handler(httpd_req_t *req)
+{
+    pomo_reset_session();
+    return send_timer_response(req);
+}
+
+static esp_err_t api_timer_status_handler(httpd_req_t *req)
+{
+    return send_timer_response(req);
+}
+
+// GET /api/device/info — report the device MAC, IP and current timer state.
+static esp_err_t api_device_info_handler(httpd_req_t *req)
+{
+    char mac[18] = {0};
+    char ip[16] = {0};
+    wifi_manager_get_mac(mac, sizeof(mac));
+    wifi_manager_get_ip_str(ip, sizeof(ip));
+
+    pomoTimer_t snap;
+    pomo_get_state(&snap);
+
+    char buf[192];
+    snprintf(buf, sizeof(buf),
+             "{\"ok\":true,\"mac\":\"%s\",\"ip\":\"%s\",\"state\":\"%s\"}",
+             mac, ip, timer_state_str(snap.timerState));
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
+    return ESP_OK;
+}
+
+// =========================================================
 // PUBLIC API
 // =========================================================
 
@@ -532,7 +640,7 @@ esp_err_t http_server_start_dashboard(void)
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_open_sockets  = 4;
-    config.max_uri_handlers  = 10;
+    config.max_uri_handlers  = 12;
     config.recv_wait_timeout = 10;
     config.send_wait_timeout = 10;
 
@@ -547,11 +655,24 @@ esp_err_t http_server_start_dashboard(void)
     httpd_uri_t tags_get  = { .uri = "/api/tags",     .method = HTTP_GET,  .handler = api_tags_get_handler };
     httpd_uri_t tags_post = { .uri = "/api/tags",     .method = HTTP_POST, .handler = api_tags_post_handler };
 
+    httpd_uri_t tmr_status = { .uri = "/api/timer/status", .method = HTTP_GET,  .handler = api_timer_status_handler };
+    httpd_uri_t tmr_start  = { .uri = "/api/timer/start",  .method = HTTP_POST, .handler = api_timer_start_handler };
+    httpd_uri_t tmr_pause  = { .uri = "/api/timer/pause",  .method = HTTP_POST, .handler = api_timer_pause_handler };
+    httpd_uri_t tmr_resume = { .uri = "/api/timer/resume", .method = HTTP_POST, .handler = api_timer_resume_handler };
+    httpd_uri_t tmr_reset  = { .uri = "/api/timer/reset",  .method = HTTP_POST, .handler = api_timer_reset_handler };
+    httpd_uri_t dev_info   = { .uri = "/api/device/info",  .method = HTTP_GET,  .handler = api_device_info_handler };
+
     httpd_register_uri_handler(s_server, &dash);
     httpd_register_uri_handler(s_server, &api);
     httpd_register_uri_handler(s_server, &dl);
     httpd_register_uri_handler(s_server, &tags_get);
     httpd_register_uri_handler(s_server, &tags_post);
+    httpd_register_uri_handler(s_server, &tmr_status);
+    httpd_register_uri_handler(s_server, &tmr_start);
+    httpd_register_uri_handler(s_server, &tmr_pause);
+    httpd_register_uri_handler(s_server, &tmr_resume);
+    httpd_register_uri_handler(s_server, &tmr_reset);
+    httpd_register_uri_handler(s_server, &dev_info);
 
     ESP_LOGI(TAG, "Dashboard HTTP server started");
     return ESP_OK;
