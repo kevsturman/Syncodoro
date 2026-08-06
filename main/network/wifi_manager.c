@@ -16,6 +16,12 @@ static const char *TAG = "wifi_mgr";
 #define AP_MAX_CONN     4
 #define STA_MAX_RETRY   5
 
+// Static IP for STA mode (no DHCP). Adjust to your network and re-flash.
+#define STA_STATIC_IP   "192.168.1.69"
+#define STA_STATIC_NM   "255.255.255.0"
+#define STA_STATIC_GW   "192.168.1.1"
+#define STA_STATIC_DNS  "192.168.1.1"
+
 static volatile wifi_state_t s_state = WIFI_STATE_IDLE;
 static int s_retry_cnt = 0;
 static char s_ip_str[16] = "0.0.0.0";
@@ -116,8 +122,24 @@ void wifi_manager_start_sta(void)
     nvs_config_get_wifi_password(password, sizeof(password));
 
     if (!s_sta_netif_created) {
-        esp_netif_create_default_wifi_sta();
+        esp_netif_t *netif = esp_netif_create_default_wifi_sta();
         s_sta_netif_created = true;
+
+        // Use a fixed IP instead of DHCP.
+        esp_netif_dhcpc_stop(netif);
+        esp_netif_ip_info_t ip_info = {0};
+        ip_info.ip.addr      = esp_ip4addr_aton(STA_STATIC_IP);
+        ip_info.netmask.addr = esp_ip4addr_aton(STA_STATIC_NM);
+        ip_info.gw.addr      = esp_ip4addr_aton(STA_STATIC_GW);
+        ESP_ERROR_CHECK(esp_netif_set_ip_info(netif, &ip_info));
+
+        esp_netif_dns_info_t dns = {0};
+        dns.ip.type = ESP_IPADDR_TYPE_V4;
+        dns.ip.u_addr.ip4.addr = esp_ip4addr_aton(STA_STATIC_DNS);
+        esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns);
+
+        snprintf(s_ip_str, sizeof(s_ip_str), "%s", STA_STATIC_IP);
+        ESP_LOGI(TAG, "Using static IP: %s (gw %s)", STA_STATIC_IP, STA_STATIC_GW);
     }
 
     if (!s_sta_started) {
