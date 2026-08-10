@@ -298,6 +298,11 @@ static void update_ui_state(void)
 {
     if (!pui.label_status) return;
 
+    if (pui.label_tag) {
+        lv_label_set_text(pui.label_tag,
+                          active_session.classTag[0] != '\0' ? active_session.classTag : "Focus");
+    }
+
     switch (active_session.timerState) {
         case pomoTimer_IDLE:
             lv_label_set_text(pui.label_status, "IDLE");
