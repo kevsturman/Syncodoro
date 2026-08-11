@@ -38,7 +38,7 @@ static lv_obj_t *modal_overlay = NULL;
 // Forward declarations
 static void update_time_display(void);
 static void update_ui_state(void);
-static void show_done_modal(void);
+static void auto_save_completed_session(void);
 static void clear_pui_widgets(void);
 
 // =========================================================
@@ -195,12 +195,13 @@ static void show_pause_modal(void)
 }
 
 // =========================================================
-// DONE MODAL (shown when timer hits 0)
+// SESSION COMPLETION (auto-save, no interaction required)
+// The session is appended to history automatically and the
+// model returns to IDLE so the next run can be started from
+// the webhook without touching the screen.
 // =========================================================
-static void modal_save_cb(lv_event_t *e)
+static void auto_save_completed_session(void)
 {
-    if (modal_overlay) { lv_obj_delete(modal_overlay); modal_overlay = NULL; }
-
     // Generate a unique session ID from the uptime counter
     snprintf(active_session.timerID, sizeof(active_session.timerID),
              "s%lld", esp_timer_get_time() / 1000000LL);
@@ -212,68 +213,8 @@ static void modal_save_cb(lv_event_t *e)
 
     // Reset model for next session
     pomo_reset_session();
-
-    // Navigate to history so the user can immediately see the saved entry
-    clear_pui_widgets();
-    ui_history_load();
-}
-
-static void modal_discard_cb(lv_event_t *e)
-{
-    if (modal_overlay) { lv_obj_delete(modal_overlay); modal_overlay = NULL; }
-    pomo_reset_session();
     update_time_display();
     update_ui_state();
-}
-
-static void show_done_modal(void)
-{
-    modal_overlay = lv_obj_create(lv_screen_active());
-    lv_obj_set_size(modal_overlay, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(modal_overlay, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(modal_overlay, LV_OPA_70, 0);
-    lv_obj_set_style_border_width(modal_overlay, 0, 0);
-    lv_obj_set_style_radius(modal_overlay, 0, 0);
-    lv_obj_add_flag(modal_overlay, LV_OBJ_FLAG_CLICKABLE);
-
-    lv_obj_t *panel = lv_obj_create(modal_overlay);
-    lv_obj_set_size(panel, 260, 175);
-    lv_obj_center(panel);
-    lv_obj_set_style_bg_color(panel, OVERTEC_BG_SURFACE, 0);
-    lv_obj_set_style_border_width(panel, 0, 0);
-    lv_obj_set_style_radius(panel, 12, 0);
-
-    lv_obj_t *label = lv_label_create(panel);
-    char buf[64];
-    snprintf(buf, sizeof(buf), "Session Complete!\n%s  %d min",
-             active_session.classTag, active_session.focusDuration);
-    lv_label_set_text(label, buf);
-    lv_obj_set_style_text_color(label, OVERTEC_TEXT_PRIMARY, 0);
-    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 18);
-
-    lv_obj_t *lbl_hint = lv_label_create(panel);
-    lv_label_set_text(lbl_hint, "Save to history?");
-    lv_obj_set_style_text_color(lbl_hint, OVERTEC_TEXT_SECONDARY, 0);
-    lv_obj_align(lbl_hint, LV_ALIGN_TOP_MID, 0, 72);
-
-    lv_obj_t *btn_save = lv_button_create(panel);
-    lv_obj_set_size(btn_save, 100, 45);
-    lv_obj_align(btn_save, LV_ALIGN_BOTTOM_RIGHT, 0, -10);
-    lv_obj_set_style_bg_color(btn_save, OVERTEC_STATE_START, 0);
-    lv_obj_add_event_cb(btn_save, modal_save_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_save = lv_label_create(btn_save);
-    lv_label_set_text(lbl_save, LV_SYMBOL_SAVE " Save");
-    lv_obj_center(lbl_save);
-
-    lv_obj_t *btn_discard = lv_button_create(panel);
-    lv_obj_set_size(btn_discard, 100, 45);
-    lv_obj_align(btn_discard, LV_ALIGN_BOTTOM_LEFT, 0, -10);
-    lv_obj_set_style_bg_color(btn_discard, OVERTEC_STATE_STOP, 0);
-    lv_obj_add_event_cb(btn_discard, modal_discard_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_discard = lv_label_create(btn_discard);
-    lv_label_set_text(lbl_discard, "Discard");
-    lv_obj_center(lbl_discard);
 }
 
 // =========================================================
@@ -438,7 +379,7 @@ static void lv_tick_cb(lv_timer_t *t)
     if (pui.label_status) {
         update_ui_state();
         if (just_completed) {
-            show_done_modal();
+            auto_save_completed_session();
         }
     }
 }
