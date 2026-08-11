@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="560" viewBox="0 0 1120 560" font-family="Inter, Helvetica, Arial, sans-serif">
+  <rect width="1120" height="560" fill="#FFFFFF"/>
+
+  <text x="60" y="40" font-size="24" font-weight="700" fill="#1F2328">Syncodoro — How the pieces fit together</text>
+
+  <!-- LVGL -->
+  <rect x="350" y="100" width="400" height="70" rx="8" fill="#4C1D95"/>
+  <text x="550" y="132" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">LVGL 9.5</text>
+  <text x="550" y="154" font-size="12" fill="#E9D5FF" text-anchor="middle">widgets · rendering · input events</text>
+
+  <!-- esp_lvgl_port -->
+  <rect x="360" y="220" width="380" height="60" rx="8" fill="#0E7490"/>
+  <text x="550" y="251" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">esp_lvgl_port 2.7.1</text>
+  <text x="550" y="270" font-size="11" fill="#CFFAFE" text-anchor="middle">ESP-IDF ↔ LVGL adapter</text>
+
+  <!-- Connectors -->
+  <path d="M550 170 L550 220" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M550 280 L550 330" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M550 330 L210 330" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M550 330 L890 330" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M210 330 L210 340" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M550 330 L550 340" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M890 330 L890 340" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M210 396 L210 440" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M550 396 L550 440" stroke="#94A3B8" stroke-width="2" fill="none"/>
+  <path d="M890 396 L890 440" stroke="#94A3B8" stroke-width="2" fill="none"/>
+
+  <!-- Display chain -->
+  <rect x="60" y="340" width="300" height="56" rx="8" fill="#1E40AF"/>
+  <text x="210" y="370" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">esp_lcd</text>
+  <text x="210" y="388" font-size="11" fill="#DBEAFE" text-anchor="middle">ST7789 panel driver</text>
+
+  <rect x="60" y="440" width="300" height="56" rx="8" fill="#3730A3"/>
+  <text x="210" y="470" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">SPI (LCD)</text>
+  <text x="210" y="488" font-size="11" fill="#E0E7FF" text-anchor="middle">GPIO 13,14,15 · DC=2 · BL=21</text>
+
+  <!-- Touch chain -->
+  <rect x="400" y="340" width="300" height="56" rx="8" fill="#15803D"/>
+  <text x="550" y="370" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">esp_lcd_touch</text>
+  <text x="550" y="388" font-size="11" fill="#DCFCE7" text-anchor="middle">interface + xpt2046 driver</text>
+
+  <rect x="400" y="440" width="300" height="56" rx="8" fill="#166534"/>
+  <text x="550" y="470" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">SPI (touch)</text>
+  <text x="550" y="488" font-size="11" fill="#DCFCE7" text-anchor="middle">GPIO 25,32,33 · MISO=39</text>
+
+  <!-- State chain -->
+  <rect x="740" y="340" width="300" height="56" rx="8" fill="#9A3412"/>
+  <text x="890" y="370" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">UI code</text>
+  <text x="890" y="388" font-size="11" fill="#FFEDD5" text-anchor="middle">ui_timer.c · ui_history.c · …</text>
+
+  <rect x="740" y="440" width="300" height="56" rx="8" fill="#7C2D12"/>
+  <text x="890" y="470" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">FreeRTOS</text>
+  <text x="890" y="488" font-size="11" fill="#FFEDD5" text-anchor="middle">mutex → active_session model</text>
+</svg>
