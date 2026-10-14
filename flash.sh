@@ -43,11 +43,13 @@ fi
 
 PORT="${PORT:-}"
 if [[ -z "$PORT" ]]; then
-    PORT="$(ls /dev/cu.usbserial-* 2>/dev/null | head -n1 || true)"
+    # Prefer the CYD's CH340/CH341 (usb-1a86) by-id path — stable across replugs;
+    # then macOS /dev/cu.usbserial-*, then any ttyUSB/ttyACM
+    PORT="$(ls /dev/serial/by-id/usb-1a86* /dev/cu.usbserial-* /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | head -n1 || true)"
 fi
 
 if [[ -z "$PORT" ]]; then
-    echo "ERROR: No USB serial device found. Run PORT=/dev/cu.usbserial-XXXX ./flash.sh" >&2
+    echo "ERROR: No USB serial device found. Run PORT=/dev/ttyUSB0 ./flash.sh" >&2
     exit 1
 fi
 
